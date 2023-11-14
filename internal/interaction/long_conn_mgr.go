@@ -19,6 +19,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/openimsdk/openim-sdk-core/v3/open_im_sdk_callback"
 	"github.com/openimsdk/openim-sdk-core/v3/pkg/ccontext"
 	"github.com/openimsdk/openim-sdk-core/v3/pkg/common"
@@ -26,12 +33,6 @@ import (
 	"github.com/openimsdk/openim-sdk-core/v3/pkg/sdkerrs"
 	"github.com/openimsdk/openim-sdk-core/v3/pkg/utils"
 	"github.com/openimsdk/openim-sdk-core/v3/sdk_struct"
-	"io"
-	"runtime"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/OpenIMSDK/protocol/sdkws"
 	"github.com/OpenIMSDK/tools/errs"
@@ -214,6 +215,15 @@ func (c *LongConnMgr) readPump(ctx context.Context) {
 	}
 }
 
+func IsClosed(ch <-chan Message) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+	}
+	return false
+}
+
 // writePump pumps messages from the hub to the websocket connection.
 //
 // A goroutine running writePump is started for each connection. The
@@ -224,7 +234,9 @@ func (c *LongConnMgr) writePump(ctx context.Context) {
 
 	defer func() {
 		c.close()
-		close(c.send)
+		if !IsClosed(c.send) {
+			close(c.send)
+		}
 	}()
 	for {
 		select {
